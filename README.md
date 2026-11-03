@@ -210,7 +210,7 @@ The PostgreSQL database enforces relational integrity, foreign key cascading, an
 ```
 ### Relational Schema Diagram:
 
-[docs/database-erd.png]
+![Database ER Diagram](docs/database-erd.png)
 
 ### Key Highlights:
 - **Multi-Tenant Isolation:** Every operational table (`boards`, `columns`, `tasks`, `activity_logs`) possesses a direct `tenant_id` foreign key.
