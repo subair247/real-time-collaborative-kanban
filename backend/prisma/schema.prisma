@@ -1,0 +1,158 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. Organizations (Parent company or business)
+model Organization {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @db.VarChar(255)
+  created_at  DateTime     @default(now()) @db.Timestamp(6)
+  updated_at  DateTime     @updatedAt @db.Timestamp(6)
+
+  tenants     Tenant[]
+  memberships Membership[]
+  boards      Board[]
+
+  @@map("organizations")
+}
+
+// 2. Tenants (Branch or independent workspace belonging to an organization)
+model Tenant {
+  id              String       @id @default(uuid()) @db.Uuid
+  organization_id String       @db.Uuid
+  name            String       @db.VarChar(255)
+  created_at      DateTime     @default(now()) @db.Timestamp(6)
+
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  memberships     Membership[]
+  boards          Board[]
+  columns         Column[]
+  tasks           Task[]
+  activity_logs   ActivityLog[]
+
+  @@index([organization_id])
+  @@map("tenants")
+}
+
+// 3. Users (Registered application users)
+model User {
+  id              String       @id @default(uuid()) @db.Uuid
+  name            String       @db.VarChar(255)
+  email           String       @unique @db.VarChar(255)
+  password_hash   String       @db.VarChar(255)
+  created_at      DateTime     @default(now()) @db.Timestamp(6)
+
+  memberships     Membership[]
+  created_boards  Board[]      @relation("BoardCreator")
+  assigned_tasks  Task[]       @relation("TaskAssignee")
+  activity_logs   ActivityLog[]
+
+  @@map("users")
+}
+
+// 4. Memberships (Role-based access control linking user to organization & tenant)
+model Membership {
+  id              String       @id @default(uuid()) @db.Uuid
+  user_id         String       @db.Uuid
+  organization_id String       @db.Uuid
+  tenant_id       String?      @db.Uuid // Nullable for organization-level administrators
+  role            String       @db.VarChar(50) // 'Org Admin', 'Tenant Admin', 'Member'
+  created_at      DateTime     @default(now()) @db.Timestamp(6)
+
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  tenant          Tenant?      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([tenant_id])
+  @@index([organization_id])
+  @@map("memberships")
+}
+
+// 5. Boards (Project task management workspaces)
+model Board {
+  id              String       @id @default(uuid()) @db.Uuid
+  organization_id String       @db.Uuid
+  tenant_id       String       @db.Uuid
+  name            String       @db.VarChar(255)
+  description     String?      @db.Text
+  created_by      String       @db.Uuid
+  created_at      DateTime     @default(now()) @db.Timestamp(6)
+
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  tenant          Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  creator         User         @relation("BoardCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  columns         Column[]
+  tasks           Task[]
+
+  @@index([tenant_id])
+  @@index([organization_id])
+  @@map("boards")
+}
+
+// 6. Columns (Task status columns: To Do, In Progress, Testing, Done)
+model Column {
+  id          String   @id @default(uuid()) @db.Uuid
+  board_id    String   @db.Uuid
+  tenant_id   String   @db.Uuid
+  name        String   @db.VarChar(255)
+  position    Int
+
+  board       Board    @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([board_id])
+  @@index([tenant_id])
+  @@map("columns")
+}
+
+// 7. Tasks (Individual work items with optimistic concurrency versioning)
+model Task {
+  id          String    @id @default(uuid()) @db.Uuid
+  board_id    String    @db.Uuid
+  column_id   String    @db.Uuid
+  tenant_id   String    @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  assigned_to String?   @db.Uuid
+  position    Int
+  version     Int       @default(1)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  updated_at  DateTime  @updatedAt @db.Timestamp(6)
+
+  board       Board     @relation(fields: [board_id], references: [id], onDelete: Cascade)
+  column      Column    @relation(fields: [column_id], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  assignee    User?     @relation("TaskAssignee", fields: [assigned_to], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([column_id])
+  @@index([board_id])
+  @@map("tasks")
+}
+
+// 8. Activity Logs (Audit trail of all task, board, and column actions per tenant)
+model ActivityLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  user_id     String   @db.Uuid
+  entity_type String   @db.VarChar(50) // 'task', 'board', 'column'
+  entity_id   String   @db.Uuid
+  action      String   @db.VarChar(50) // 'Created', 'Updated', 'Moved', 'Deleted'
+  details     Json     @db.JsonB
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("activity_logs")
+}

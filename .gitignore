@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+dist/
+build/
+.next/
+.vite/
+
+# Environment variables (Ignore secrets, but ALWAYS keep .env.example templates)
+.env
+.env.local
+.env.production
+.env.development
+*.env
+!.env.example
+
+# Python virtual environment & cache
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs & test coverage
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+*.log
+
+# Prisma local database cache (SQLite if any)
+*.db
+*.db-journal
